@@ -6,6 +6,9 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -253,37 +256,76 @@ private fun FlowRowControls(
 /** --- Canvas and animation --- */
 @Composable
 private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: EmotionType) {
+
+    val transitionProgress = remember { Animatable(1f) }
+    var previousEmotion by remember { mutableStateOf(currentEmotion) }
+
     // Frame counter drives animations. Updating it triggers a recomposition and redraw of Canvas.
     val frameState = remember { mutableStateOf(0L) }
 
-    // Start animation loop
-    LaunchedEffect(currentEmotion) {
-        // when emotion changes we continue animating; the draw uses currentEmotion's config
-        var frame: Long = 0L
+    LaunchedEffect(Unit) {
+        var frame = 0L
         while (true) {
-            withFrameNanos { /*frameTime*/
+            withFrameNanos {
                 frame++
                 frameState.value = frame
             }
         }
     }
+    // Start animation loop
+    LaunchedEffect(currentEmotion) {
+        val fromEmotion = previousEmotion
+        transitionProgress.snapTo(0f)
+
+        transitionProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(
+                durationMillis = 450,
+                easing = FastOutSlowInEasing
+            )
+        )
+
+        previousEmotion = currentEmotion
+    }
+
+
 
     androidx.compose.foundation.Canvas(
         modifier = Modifier
             .size(sizeDp)
     ) {
+
+        val t = transitionProgress.value
+
+        val from = EMOTIONS[previousEmotion]!!
+        val to = EMOTIONS[currentEmotion]!!
+
+        val config = EmotionConfig(
+            primaryColor = lerpColor(from.primaryColor, to.primaryColor, t),
+            secondaryColor = lerpColor(from.secondaryColor, to.secondaryColor, t),
+            coreColor = lerpColor(from.coreColor, to.coreColor, t),
+            glowAmount = lerp(from.glowAmount, to.glowAmount, t),
+            pulseSpeed = lerp(from.pulseSpeed, to.pulseSpeed, t),
+            mouthSpeed = lerp(from.mouthSpeed, to.mouthSpeed, t),
+            mouthBaseHeight = lerp(from.mouthBaseHeight, to.mouthBaseHeight, t),
+            eyeScaleY = lerp(from.eyeScaleY, to.eyeScaleY, t),
+            eyeRotationSpeed = lerp(from.eyeRotationSpeed, to.eyeRotationSpeed, t),
+            shakeIntensity = lerp(from.shakeIntensity, to.shakeIntensity, t)
+        )
+
+
         val canvasWidth = size.width
         val canvasHeight = size.height
         val cx = canvasWidth / 2f
         val cy = canvasHeight / 2f
 
         val frame = frameState.value.toFloat()
-        val config = EMOTIONS[currentEmotion] ?: EMOTIONS["Happy"]!!
+//        val config = EMOTIONS[currentEmotion] ?: EMOTIONS["Happy"]!!
 
         // Global shake for Angry
         var shakeX = 0f
         var shakeY = 0f
-        if (config.shakeIntensity > 0f) {
+        if (config.shakeIntensity * t > 0f) {
             shakeX = (Math.random().toFloat() - 0.5f) * config.shakeIntensity
             shakeY = (Math.random().toFloat() - 0.5f) * config.shakeIntensity
         }
@@ -358,6 +400,19 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
 
     }
 }
+
+private fun lerp(a: Float, b: Float, t: Float): Float =
+    a + (b - a) * t
+
+private fun lerpColor(a: Int, b: Int, t: Float): Int {
+    return Color.argb(
+        lerp(Color.alpha(a).toFloat(), Color.alpha(b).toFloat(), t).toInt(),
+        lerp(Color.red(a).toFloat(), Color.red(b).toFloat(), t).toInt(),
+        lerp(Color.green(a).toFloat(), Color.green(b).toFloat(), t).toInt(),
+        lerp(Color.blue(a).toFloat(), Color.blue(b).toFloat(), t).toInt()
+    )
+}
+
 
 /** --- Helper drawing functions (Android Canvas) --- */
 private fun drawEye(
