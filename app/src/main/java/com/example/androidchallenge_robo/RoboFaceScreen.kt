@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +47,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableLongStateOf
+import kotlin.math.PI
 
 
 /** --- Types & Constants --- */
@@ -136,7 +140,38 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
 @Preview
 @Composable
 fun RoboFaceScreen() {
-    var currentEmotion by remember { mutableStateOf<EmotionType>("Happy") }
+    val context = LocalContext.current
+    val sensorController = remember { SensorController(context) }
+    val sensorState by sensorController.state.collectAsState()
+
+    DisposableEffect(Unit) {
+        sensorController.startListening()
+        onDispose { sensorController.stopListening() }
+    }
+
+    var currentEmotion by remember { mutableStateOf("Happy") }
+    // Store previous emotion to restore after sleep
+    var preSleepEmotion by remember { mutableStateOf("Happy") }
+
+    // Sensor Logic Reactivity
+    LaunchedEffect(sensorState.isProximityNear) {
+        if (sensorState.isProximityNear) {
+            if (currentEmotion != "Sleep") {
+                preSleepEmotion = currentEmotion
+                currentEmotion = "Sleep"
+            }
+        } else {
+            if (currentEmotion == "Sleep") {
+                currentEmotion = preSleepEmotion
+            }
+        }
+    }
+
+    LaunchedEffect(sensorState.isShaking) {
+        if (sensorState.isShaking && currentEmotion != "Sleep") {
+            currentEmotion = "Angry"
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -186,7 +221,11 @@ fun RoboFaceScreen() {
                     .clip(RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                RoboFaceCanvas(sizeDp = sizeDp, currentEmotion = currentEmotion)
+                RoboFaceCanvas(
+                    sizeDp = sizeDp,
+                    currentEmotion = currentEmotion,
+                    sensorState = sensorState
+                )
 
                 // Vignette overlay (semi-transparent radial)
                 // We'll not implement a perfect radial CSS gradient; instead draw a translucent overlay in Canvas itself.
@@ -255,13 +294,17 @@ private fun FlowRowControls(
 
 /** --- Canvas and animation --- */
 @Composable
-private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: EmotionType) {
+private fun RoboFaceCanvas(
+    sizeDp: androidx.compose.ui.unit.Dp,
+    currentEmotion: EmotionType,
+    sensorState: RoboSensorState
+) {
 
     val transitionProgress = remember { Animatable(1f) }
     var previousEmotion by remember { mutableStateOf(currentEmotion) }
 
     // Frame counter drives animations. Updating it triggers a recomposition and redraw of Canvas.
-    val frameState = remember { mutableStateOf(0L) }
+    val frameState = remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         var frame = 0L
@@ -319,6 +362,46 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
         val cx = canvasWidth / 2f
         val cy = canvasHeight / 2f
 
+        // Apply Head Tilt (Roll)
+        // Let's use Roll for static tilt.
+        // We'll limit the tilt so it doesn't go upside down fully
+        val tiltDegrees = -sensorState.roll * (180f / PI.toFloat())
+        
+        // Apply Eye Parallax (Pitch & Roll)
+        // INCREASED SENSITIVITY:
+        // Users couldn't see it. Let's make it much more pronounced.
+        // maxOffset changed from 0.15f to 0.4f (40% of width is huge, but let's try 0.25f first).
+        val maxOffset = canvasWidth * 0.3f 
+        
+        // "Tilt phone -> eyes move in same direction"
+        // If I tilt Left (Roll < 0? Or Roll > 0?), I expect Eyes to move Left relative to the screen.
+        // Gravity pulls things "Down".
+        // If I tilt Left side down, gravity pulls "Left".
+        // So eyes 'falling' to the left? 
+        // Or "Looking" in direction of tilt.
+        // Usually, eyes looking "towards" the tilt means they go to that side.
+        
+        // sensorState.roll: Positive when device is tilted right (right side down).
+        // If Roll > 0 (Right down), we want Eyes to go RIGHT (Positive X).
+        // My previous code: lookX = (roll / (PI/2)) * maxOffset. 
+        // This means Right Tilt -> Right Look. This is correct.
+        
+        // Pitch: Positive when device top is tilted away? Or towards?
+        // Android: Pitch positive when top of device is tilted down (towards ground? No, towards user usually z-axis... wait)
+        // Documentation: Pitch is positive when the device is tilted up (top edge up, bottom edge down) -> No. 
+        // Pitch is rotation around X axis.
+        // Let's just create a visually consistent mapping.
+        // If I tilt Top Down (Pitch ?), I want eyes to look Down (Positive Y).
+        
+        // Let's clamp the values so extreme tilts don't break the face
+        val rollFraction = (sensorState.roll / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
+        val pitchFraction = (sensorState.pitch / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
+        
+        val lookX = rollFraction * maxOffset
+        // If pitch is positive (top up?), I want eyes up? 
+        // Let's test negative.
+        val lookY = calcPitchLookMode(pitchFraction) * maxOffset
+
         val frame = frameState.value.toFloat()
 //        val config = EMOTIONS[currentEmotion] ?: EMOTIONS["Happy"]!!
 
@@ -369,10 +452,19 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
         val eyeY = cy - canvasHeight * 0.1f
         val baseEyeRadius = canvasWidth * 0.15f
 // Eyes
+        // Apply head tilt rotation to the whole canvas context? 
+        // No, maybe just rotate the face elements?
+        // nativeCanvas.rotate(tiltDegrees, cx, cy) // This would rotate everything including bg? 
+        // If we want BG stable and Face rotating:
+        // Move rotate after BG draw.
+        
+        nativeCanvas.save()
+        nativeCanvas.rotate(tiltDegrees, cx, cy)
+
         drawEye(
             nativeCanvas = nativeCanvas,
-            x = cx - eyeSpacing,
-            y = eyeY,
+            x = cx - eyeSpacing + lookX,
+            y = eyeY + lookY,
             radius = baseEyeRadius * pulse,
             config = config,
             time = frame,
@@ -382,8 +474,8 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
 
         drawEye(
             nativeCanvas = nativeCanvas,
-            x = cx + eyeSpacing,
-            y = eyeY,
+            x = cx + eyeSpacing + lookX,
+            y = eyeY + lookY,
             radius = baseEyeRadius * pulse,
             config = config,
             time = frame,
@@ -392,8 +484,10 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
         )
 
 // Nose & mouth
-        drawNose(nativeCanvas, cx, cy + canvasHeight * 0.1f, config)
-        drawMouth(nativeCanvas, cx, cy + canvasHeight * 0.25f, config, frame, currentEmotion)
+        drawNose(nativeCanvas, cx + lookX * 0.5f, cy + canvasHeight * 0.1f + lookY * 0.5f, config)
+        drawMouth(nativeCanvas, cx + lookX * 0.5f, cy + canvasHeight * 0.25f + lookY * 0.5f, config, frame, currentEmotion)
+
+        nativeCanvas.restore() // restore rotation
 
         nativeCanvas.restore()
 
@@ -619,4 +713,10 @@ private fun drawMouth(
 private fun adjustAlpha(colorInt: Int, alphaFactor: Float): Int {
     val alpha = (Color.alpha(colorInt) * alphaFactor).roundToInt().coerceIn(0, 255)
     return Color.argb(alpha, Color.red(colorInt), Color.green(colorInt), Color.blue(colorInt))
+}
+
+private fun calcPitchLookMode(pitchParam: Float): Float {
+    // Pitch: Rotation around X axis.
+    // Ensure inverted appropriately for screen coordinates (Down is +Y)
+    return -pitchParam
 }
