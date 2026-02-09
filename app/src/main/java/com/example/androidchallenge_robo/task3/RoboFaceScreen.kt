@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.PI
 
 
@@ -189,7 +190,7 @@ fun RoboFaceScreen() {
                 color = androidx.compose.ui.graphics.Color(0xFF00FFFF)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Sensor Fusion ΓÇô Motion, Tilt & Proximity Interaction (Task 3)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
+            Text(text = "Sensor Fusion Motion, Tilt & Proximity Interaction (Task 3)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), textAlign = TextAlign.Center)
         }
 
         Spacer(modifier = Modifier.height(18.dp))
