@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 data class RoboSensorState(
@@ -32,11 +31,7 @@ class SensorController(context: Context) : SensorEventListener {
     private var magnetometer: Sensor? = null // For accurate orientation if needed, but Gravity/RotationVector is better
     private var proximitySensor: Sensor? = null
     private var gyroscope: Sensor? = null
-
-    // For Shake Detection
-    private var lastAcceleration = 0f
     private var currentAcceleration = SensorManager.GRAVITY_EARTH
-    private var shakeThreshold = 12f // Sensitivity
 
     // For Orientation
     private val accelerometerReading = FloatArray(3)
@@ -89,19 +84,13 @@ class SensorController(context: Context) : SensorEventListener {
                 updateOrientation()
             }
             Sensor.TYPE_PROXIMITY -> {
-                // event.values[0] is distance in cm
-                // event.sensor.maximumRange is the max check
                 val distance = event.values[0]
                 val maxRange = event.sensor.maximumRange
-                // Some sensors return binary (0 or 5/max).
-                // Usually near is < 5cm or < maxRange
                 val isNear = distance < 5f && distance < maxRange
                 _state.update { it.copy(isProximityNear = isNear) }
             }
             Sensor.TYPE_GYROSCOPE -> {
-                // event.values[2] is rotation around Z axis (rad/s)
                 val rateZ = event.values[2]
-                // Apply simple smoothing or just pass raw? Raw is fine for effects.
                 _state.update { it.copy(rotationRateZ = rateZ) }
             }
         }
@@ -140,10 +129,7 @@ class SensorController(context: Context) : SensorEventListener {
                  SensorManager.getOrientation(rotationMatrix, orientationAngles)
                  val pitch = orientationAngles[1]
                  val roll = orientationAngles[2]
-                 
-                 // Apply Stronger Smoothness (Low Pass Filter)
-                 // Previous: 0.6/0.4 was too jittery.
-                 // New: 0.9/0.1 for very smooth but slightly lazy movement.
+
                  _state.update { current ->
                      val smoothPitch = current.pitch * 0.9f + pitch * 0.1f
                      val smoothRoll = current.roll * 0.9f + roll * 0.1f

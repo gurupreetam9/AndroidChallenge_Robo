@@ -1,4 +1,3 @@
-// file: RoboFaceScreen.kt
 package com.example.androidchallenge_robo
 
 import android.annotation.SuppressLint
@@ -93,9 +92,9 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
         pulseSpeed = 0.02f,
         mouthSpeed = 0.3f,
         mouthBaseHeight = 25f,
-        eyeScaleY = 0.9f,
-        eyeRotationSpeed = 0f,
-        shakeIntensity = 2f
+        eyeScaleY = 0.8f,
+        eyeRotationSpeed = 0.05f,
+        shakeIntensity = 5f
     ),
     "Sad" to EmotionConfig(
         primaryColor = hexColor("#4466aa"),
@@ -184,13 +183,13 @@ fun RoboFaceScreen() {
         // Header
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Model X-71",
+                text = "ROBO",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = androidx.compose.ui.graphics.Color(0xFF00FFFF)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Interactive Emotion Core", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
+            Text(text = "Sensor Fusion – Motion, Tilt & Proximity Interaction (Task 3)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -226,9 +225,6 @@ fun RoboFaceScreen() {
                     currentEmotion = currentEmotion,
                     sensorState = sensorState
                 )
-
-                // Vignette overlay (semi-transparent radial)
-                // We'll not implement a perfect radial CSS gradient; instead draw a translucent overlay in Canvas itself.
             }
         }
 
@@ -238,13 +234,6 @@ fun RoboFaceScreen() {
         FlowRowControls(currentEmotion = currentEmotion, setCurrentEmotion = { currentEmotion = it })
 
         Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Running Procedural Rendering Engine v2.0\nCanvas 2D Context | No Image Assets Used",
-            fontSize = 12.sp,
-            color = androidx.compose.ui.graphics.Color(0xFF9CA3AF),
-            modifier = Modifier.padding(top = 12.dp),
-        )
     }
 }
 
@@ -261,8 +250,8 @@ private fun FlowRowControls(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         maxItemsInEachRow = 3 // optional, good for phones
     ) {
         emotions.forEach { emotion ->
@@ -362,48 +351,17 @@ private fun RoboFaceCanvas(
         val cx = canvasWidth / 2f
         val cy = canvasHeight / 2f
 
-        // Apply Head Tilt (Roll)
-        // Let's use Roll for static tilt.
-        // We'll limit the tilt so it doesn't go upside down fully
         val tiltDegrees = -sensorState.roll * (180f / PI.toFloat())
-        
-        // Apply Eye Parallax (Pitch & Roll)
-        // INCREASED SENSITIVITY:
-        // Users couldn't see it. Let's make it much more pronounced.
-        // maxOffset changed from 0.15f to 0.4f (40% of width is huge, but let's try 0.25f first).
-        val maxOffset = canvasWidth * 0.3f 
-        
-        // "Tilt phone -> eyes move in same direction"
-        // If I tilt Left (Roll < 0? Or Roll > 0?), I expect Eyes to move Left relative to the screen.
-        // Gravity pulls things "Down".
-        // If I tilt Left side down, gravity pulls "Left".
-        // So eyes 'falling' to the left? 
-        // Or "Looking" in direction of tilt.
-        // Usually, eyes looking "towards" the tilt means they go to that side.
-        
-        // sensorState.roll: Positive when device is tilted right (right side down).
-        // If Roll > 0 (Right down), we want Eyes to go RIGHT (Positive X).
-        // My previous code: lookX = (roll / (PI/2)) * maxOffset. 
-        // This means Right Tilt -> Right Look. This is correct.
-        
-        // Pitch: Positive when device top is tilted away? Or towards?
-        // Android: Pitch positive when top of device is tilted down (towards ground? No, towards user usually z-axis... wait)
-        // Documentation: Pitch is positive when the device is tilted up (top edge up, bottom edge down) -> No. 
-        // Pitch is rotation around X axis.
-        // Let's just create a visually consistent mapping.
-        // If I tilt Top Down (Pitch ?), I want eyes to look Down (Positive Y).
-        
-        // Let's clamp the values so extreme tilts don't break the face
+
+        val maxOffset = canvasWidth * 0.3f
+
         val rollFraction = (sensorState.roll / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
         val pitchFraction = (sensorState.pitch / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
         
         val lookX = rollFraction * maxOffset
-        // If pitch is positive (top up?), I want eyes up? 
-        // Let's test negative.
         val lookY = calcPitchLookMode(pitchFraction) * maxOffset
 
         val frame = frameState.value.toFloat()
-//        val config = EMOTIONS[currentEmotion] ?: EMOTIONS["Happy"]!!
 
         // Global shake for Angry
         var shakeX = 0f
@@ -452,11 +410,6 @@ private fun RoboFaceCanvas(
         val eyeY = cy - canvasHeight * 0.1f
         val baseEyeRadius = canvasWidth * 0.15f
 // Eyes
-        // Apply head tilt rotation to the whole canvas context? 
-        // No, maybe just rotate the face elements?
-        // nativeCanvas.rotate(tiltDegrees, cx, cy) // This would rotate everything including bg? 
-        // If we want BG stable and Face rotating:
-        // Move rotate after BG draw.
         
         nativeCanvas.save()
         nativeCanvas.rotate(tiltDegrees, cx, cy)
@@ -521,6 +474,12 @@ private fun drawEye(
 ) {
     nativeCanvas.save()
     nativeCanvas.translate(x, y)
+
+    // Angry Slant
+    if (currentEmotion == "Angry") {
+        val slant = if (isRight) -25f else 25f
+        nativeCanvas.rotate(slant)
+    }
 
     var currentScaleY = config.eyeScaleY
     var currentRadius = radius
