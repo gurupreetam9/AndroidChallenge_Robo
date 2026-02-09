@@ -1,4 +1,4 @@
-package com.example.androidchallenge_robo
+package com.example.androidchallenge_robo.task2
 
 import android.annotation.SuppressLint
 import android.graphics.Color

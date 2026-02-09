@@ -1,4 +1,4 @@
-package com.example.androidchallenge_robo
+package com.example.androidchallenge_robo.task3
 
 import android.annotation.SuppressLint
 import android.graphics.Color
@@ -46,8 +46,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.PI
 
 
 /** --- Types & Constants --- */
@@ -136,7 +139,38 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
 @Preview
 @Composable
 fun RoboFaceScreen() {
+    val context = LocalContext.current
+    val sensorController = remember { SensorController(context) }
+    val sensorState by sensorController.state.collectAsState()
+
+    DisposableEffect(Unit) {
+        sensorController.startListening()
+        onDispose { sensorController.stopListening() }
+    }
+
     var currentEmotion by remember { mutableStateOf("Happy") }
+    // Store previous emotion to restore after sleep
+    var preSleepEmotion by remember { mutableStateOf("Happy") }
+
+    // Sensor Logic Reactivity
+    LaunchedEffect(sensorState.isProximityNear) {
+        if (sensorState.isProximityNear) {
+            if (currentEmotion != "Sleep") {
+                preSleepEmotion = currentEmotion
+                currentEmotion = "Sleep"
+            }
+        } else {
+            if (currentEmotion == "Sleep") {
+                currentEmotion = preSleepEmotion
+            }
+        }
+    }
+
+    LaunchedEffect(sensorState.isShaking) {
+        if (sensorState.isShaking && currentEmotion != "Sleep") {
+            currentEmotion = "Angry"
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -155,7 +189,7 @@ fun RoboFaceScreen() {
                 color = androidx.compose.ui.graphics.Color(0xFF00FFFF)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Native Vector Robo Face with Emotion Animation\n (Task 2)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), textAlign = TextAlign.Center)
+            Text(text = "Sensor Fusion ΓÇô Motion, Tilt & Proximity Interaction (Task 3)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -186,10 +220,11 @@ fun RoboFaceScreen() {
                     .clip(RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                RoboFaceCanvas(sizeDp = sizeDp, currentEmotion = currentEmotion)
-
-                // Vignette overlay (semi-transparent radial)
-                // We'll not implement a perfect radial CSS gradient; instead draw a translucent overlay in Canvas itself.
+                RoboFaceCanvas(
+                    sizeDp = sizeDp,
+                    currentEmotion = currentEmotion,
+                    sensorState = sensorState
+                )
             }
         }
 
@@ -248,7 +283,11 @@ private fun FlowRowControls(
 
 /** --- Canvas and animation --- */
 @Composable
-private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: EmotionType) {
+private fun RoboFaceCanvas(
+    sizeDp: androidx.compose.ui.unit.Dp,
+    currentEmotion: EmotionType,
+    sensorState: RoboSensorState
+) {
 
     val transitionProgress = remember { Animatable(1f) }
     var previousEmotion by remember { mutableStateOf(currentEmotion) }
@@ -267,6 +306,7 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
     }
     // Start animation loop
     LaunchedEffect(currentEmotion) {
+        val fromEmotion = previousEmotion
         transitionProgress.snapTo(0f)
 
         transitionProgress.animateTo(
@@ -311,8 +351,17 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
         val cx = canvasWidth / 2f
         val cy = canvasHeight / 2f
 
+        val tiltDegrees = -sensorState.roll * (180f / PI.toFloat())
+
+        val maxOffset = canvasWidth * 0.3f
+
+        val rollFraction = (sensorState.roll / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
+        val pitchFraction = (sensorState.pitch / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
+        
+        val lookX = rollFraction * maxOffset
+        val lookY = calcPitchLookMode(pitchFraction) * maxOffset
+
         val frame = frameState.value.toFloat()
-//        val config = EMOTIONS[currentEmotion] ?: EMOTIONS["Happy"]!!
 
         // Global shake for Angry
         var shakeX = 0f
@@ -361,10 +410,14 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
         val eyeY = cy - canvasHeight * 0.1f
         val baseEyeRadius = canvasWidth * 0.15f
 // Eyes
+        
+        nativeCanvas.save()
+        nativeCanvas.rotate(tiltDegrees, cx, cy)
+
         drawEye(
             nativeCanvas = nativeCanvas,
-            x = cx - eyeSpacing,
-            y = eyeY,
+            x = cx - eyeSpacing + lookX,
+            y = eyeY + lookY,
             radius = baseEyeRadius * pulse,
             config = config,
             time = frame,
@@ -374,8 +427,8 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
 
         drawEye(
             nativeCanvas = nativeCanvas,
-            x = cx + eyeSpacing,
-            y = eyeY,
+            x = cx + eyeSpacing + lookX,
+            y = eyeY + lookY,
             radius = baseEyeRadius * pulse,
             config = config,
             time = frame,
@@ -384,8 +437,10 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
         )
 
 // Nose & mouth
-        drawNose(nativeCanvas, cx, cy + canvasHeight * 0.1f, config)
-        drawMouth(nativeCanvas, cx, cy + canvasHeight * 0.25f, config, frame, currentEmotion)
+        drawNose(nativeCanvas, cx + lookX * 0.5f, cy + canvasHeight * 0.1f + lookY * 0.5f, config)
+        drawMouth(nativeCanvas, cx + lookX * 0.5f, cy + canvasHeight * 0.25f + lookY * 0.5f, config, frame, currentEmotion)
+
+        nativeCanvas.restore() // restore rotation
 
         nativeCanvas.restore()
 
@@ -419,6 +474,12 @@ private fun drawEye(
 ) {
     nativeCanvas.save()
     nativeCanvas.translate(x, y)
+
+    // Angry Slant
+    if (currentEmotion == "Angry") {
+        val slant = if (isRight) -25f else 25f
+        nativeCanvas.rotate(slant)
+    }
 
     var currentScaleY = config.eyeScaleY
     var currentRadius = radius
@@ -611,4 +672,10 @@ private fun drawMouth(
 private fun adjustAlpha(colorInt: Int, alphaFactor: Float): Int {
     val alpha = (Color.alpha(colorInt) * alphaFactor).roundToInt().coerceIn(0, 255)
     return Color.argb(alpha, Color.red(colorInt), Color.green(colorInt), Color.blue(colorInt))
+}
+
+private fun calcPitchLookMode(pitchParam: Float): Float {
+    // Pitch: Rotation around X axis.
+    // Ensure inverted appropriately for screen coordinates (Down is +Y)
+    return -pitchParam
 }
