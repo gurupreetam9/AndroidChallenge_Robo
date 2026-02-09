@@ -190,7 +190,7 @@ fun RoboFaceScreen() {
                 color = androidx.compose.ui.graphics.Color(0xFF00FFFF)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Sensor Fusion Motion, Tilt & Proximity Interaction (Task 3)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), textAlign = TextAlign.Center)
+            Text(text = "Sensor Fusion Motion, Tilt & Proximity Interaction\n (Task 3)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), textAlign = TextAlign.Center)
         }
 
         Spacer(modifier = Modifier.height(18.dp))
