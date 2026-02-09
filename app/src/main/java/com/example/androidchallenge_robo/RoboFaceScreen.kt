@@ -1,4 +1,3 @@
-// file: RoboFaceScreen.kt
 package com.example.androidchallenge_robo
 
 import android.annotation.SuppressLint
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +46,8 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.ui.text.style.TextAlign
 
 
 /** --- Types & Constants --- */
@@ -89,9 +89,9 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
         pulseSpeed = 0.02f,
         mouthSpeed = 0.3f,
         mouthBaseHeight = 25f,
-        eyeScaleY = 0.9f,
-        eyeRotationSpeed = 0f,
-        shakeIntensity = 2f
+        eyeScaleY = 0.8f,
+        eyeRotationSpeed = 0.05f,
+        shakeIntensity = 5f
     ),
     "Sad" to EmotionConfig(
         primaryColor = hexColor("#4466aa"),
@@ -136,7 +136,7 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
 @Preview
 @Composable
 fun RoboFaceScreen() {
-    var currentEmotion by remember { mutableStateOf<EmotionType>("Happy") }
+    var currentEmotion by remember { mutableStateOf("Happy") }
 
     Column(
         modifier = Modifier
@@ -149,13 +149,13 @@ fun RoboFaceScreen() {
         // Header
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Model X-71",
+                text = "ROBO",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = androidx.compose.ui.graphics.Color(0xFF00FFFF)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Interactive Emotion Core", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
+            Text(text = "Native Vector Robo Face with Emotion Animation\n (Task 2)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF), textAlign = TextAlign.Center)
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -199,13 +199,6 @@ fun RoboFaceScreen() {
         FlowRowControls(currentEmotion = currentEmotion, setCurrentEmotion = { currentEmotion = it })
 
         Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Running Procedural Rendering Engine v2.0\nCanvas 2D Context | No Image Assets Used",
-            fontSize = 12.sp,
-            color = androidx.compose.ui.graphics.Color(0xFF9CA3AF),
-            modifier = Modifier.padding(top = 12.dp),
-        )
     }
 }
 
@@ -222,8 +215,8 @@ private fun FlowRowControls(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         maxItemsInEachRow = 3 // optional, good for phones
     ) {
         emotions.forEach { emotion ->
@@ -261,7 +254,7 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
     var previousEmotion by remember { mutableStateOf(currentEmotion) }
 
     // Frame counter drives animations. Updating it triggers a recomposition and redraw of Canvas.
-    val frameState = remember { mutableStateOf(0L) }
+    val frameState = remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         var frame = 0L
@@ -274,7 +267,6 @@ private fun RoboFaceCanvas(sizeDp: androidx.compose.ui.unit.Dp, currentEmotion: 
     }
     // Start animation loop
     LaunchedEffect(currentEmotion) {
-        val fromEmotion = previousEmotion
         transitionProgress.snapTo(0f)
 
         transitionProgress.animateTo(
