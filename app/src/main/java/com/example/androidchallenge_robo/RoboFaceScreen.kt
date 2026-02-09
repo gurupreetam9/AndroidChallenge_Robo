@@ -1,4 +1,3 @@
-// file: RoboFaceScreen.kt
 package com.example.androidchallenge_robo
 
 import android.annotation.SuppressLint
@@ -47,11 +46,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableLongStateOf
-import kotlin.math.PI
 
 
 /** --- Types & Constants --- */
@@ -93,9 +88,9 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
         pulseSpeed = 0.02f,
         mouthSpeed = 0.3f,
         mouthBaseHeight = 25f,
-        eyeScaleY = 0.9f,
-        eyeRotationSpeed = 0f,
-        shakeIntensity = 2f
+        eyeScaleY = 0.8f,
+        eyeRotationSpeed = 0.15f,
+        shakeIntensity = 5f
     ),
     "Sad" to EmotionConfig(
         primaryColor = hexColor("#4466aa"),
@@ -167,9 +162,6 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
 @Preview
 @Composable
 fun RoboFaceScreen() {
-    val context = LocalContext.current
-
-
 
     var currentEmotion by remember { mutableStateOf("Happy") }
 
@@ -331,7 +323,6 @@ private fun RoboFaceCanvas(
     }
     // Start animation loop
     LaunchedEffect(currentEmotion) {
-        val fromEmotion = previousEmotion
         transitionProgress.snapTo(0f)
 
         transitionProgress.animateTo(

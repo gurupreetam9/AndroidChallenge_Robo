@@ -1,6 +1,5 @@
 package com.example.androidchallenge_robo
 
-import android.content.Context
 import android.util.Log
 import android.view.ViewGroup
 import androidx.camera.core.CameraSelector
@@ -12,7 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import java.util.concurrent.Executors
 
 @Composable
@@ -20,19 +22,29 @@ fun CameraPreview(
     modifier: Modifier = Modifier,
     onEmotionDetected: (String, Long) -> Unit
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val classifier = remember { EmotionClassifier(context) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            cameraExecutor.shutdown()
+            classifier.close()
+        }
+    }
+
     AndroidView(
         modifier = modifier,
-        factory = { context ->
-            PreviewView(context).apply {
+        factory = { ctx ->
+            PreviewView(ctx).apply {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                
-                val cameraExecutor = Executors.newSingleThreadExecutor()
-                val classifier = EmotionClassifier(context)
 
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                 cameraProviderFuture.addListener({
                     val cameraProvider = cameraProviderFuture.get()
                     
@@ -63,7 +75,7 @@ fun CameraPreview(
                     try {
                         cameraProvider.unbindAll()
                         cameraProvider.bindToLifecycle(
-                            context as LifecycleOwner,
+                            lifecycleOwner,
                             cameraSelector,
                             preview,
                             imageAnalysis

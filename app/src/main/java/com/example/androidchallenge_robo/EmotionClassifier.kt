@@ -12,6 +12,7 @@ import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
+import androidx.core.graphics.scale
 
 class EmotionClassifier(private val context: Context) {
 
@@ -86,7 +87,7 @@ class EmotionClassifier(private val context: Context) {
 
         // Resize image
         val resizedBitmap =
-            Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
+            bitmap.scale(inputSize, inputSize)
 
         inputBuffer.rewind()
 
