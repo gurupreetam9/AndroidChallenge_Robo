@@ -205,13 +205,13 @@ fun RoboFaceScreen() {
         // Header
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Model X-71",
+                text = "ROBO",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = androidx.compose.ui.graphics.Color(0xFF00FFFF)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = "Interactive Emotion Core", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
+            Text(text = "Interactive Emotion Core (Task 7)", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
             Text(text = "Inference: ${inferenceTime}ms", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF00FF00))
         }
 
@@ -260,12 +260,6 @@ fun RoboFaceScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Text(
-            text = "Running Procedural Rendering Engine v2.0\nCanvas 2D Context | No Image Assets Used",
-            fontSize = 12.sp,
-            color = androidx.compose.ui.graphics.Color(0xFF9CA3AF),
-            modifier = Modifier.padding(top = 12.dp),
-        )
     }
 }
 

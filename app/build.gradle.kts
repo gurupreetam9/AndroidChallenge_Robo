@@ -63,6 +63,5 @@ dependencies {
     implementation("androidx.camera:camera-view:${camerax_version}")
 
     // TensorFlow Lite
-    implementation("org.tensorflow:tensorflow-lite:2.17.0")
-//    implementation("org.tensorflow:tensorflow-lite-gpu:2.17.0")
+    implementation(libs.tensorflow.lite)
 }
