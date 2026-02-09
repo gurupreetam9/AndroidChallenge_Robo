@@ -18,6 +18,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        val requestPermissionLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { isGranted: Boolean ->
+            if (isGranted) {
+                // Permission granted
+            } else {
+                // Handle permission denied
+            }
+        }
+
+        requestPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+
         setContent {
             AndroidChallengeRoboTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF050508)) {

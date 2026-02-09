@@ -109,29 +109,56 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
         eyeRotationSpeed = 0.001f,
         shakeIntensity = 0f
     ),
-    "Sleep" to EmotionConfig(
-        primaryColor = hexColor("#112233"),
-        secondaryColor = hexColor("#051015"),
-        coreColor = hexColor("#223344"),
-        glowAmount = 2f,
-        pulseSpeed = 0.001f,
-        mouthSpeed = 0f,
-        mouthBaseHeight = 0f,
-        eyeScaleY = 0.05f,
-        eyeRotationSpeed = 0f,
+
+
+    // Fallback/Mapped emotions
+    "Neutral" to EmotionConfig(
+        primaryColor = hexColor("#00ffff"), // Happy-ish (Cyan)
+        secondaryColor = hexColor("#0088ff"),
+        coreColor = hexColor("#ffffff"),
+        glowAmount = 10f,
+        pulseSpeed = 0.002f,
+        mouthSpeed = 0.02f,
+        mouthBaseHeight = 10f, // Flatter mouth
+        eyeScaleY = 1f,
+        eyeRotationSpeed = 0.001f,
         shakeIntensity = 0f
     ),
-    "Curious" to EmotionConfig(
-        primaryColor = hexColor("#d66aff"),
+    "Surprise" to EmotionConfig(
+        primaryColor = hexColor("#d66aff"), // Curious-ish (Purple)
         secondaryColor = hexColor("#8800ff"),
         coreColor = hexColor("#ffffff"),
-        glowAmount = 15f,
-        pulseSpeed = 0.005f,
+        glowAmount = 20f,
+        pulseSpeed = 0.01f,
         mouthSpeed = 0.05f,
-        mouthBaseHeight = 15f,
-        eyeScaleY = 1f,
-        eyeRotationSpeed = 0.02f,
+        mouthBaseHeight = 10f, // O-face logic? Just base height for now
+        eyeScaleY = 1.2f, // Wide eyes
+        eyeRotationSpeed = 0.05f,
         shakeIntensity = 0f
+    ),
+    "Fear" to EmotionConfig(
+        primaryColor = hexColor("#4466aa"), // Sad-ish (Blue/Grey)
+        secondaryColor = hexColor("#223355"),
+        coreColor = hexColor("#8899bb"),
+        glowAmount = 5f,
+        pulseSpeed = 0.05f, // Fast pulse
+        mouthSpeed = 0.1f, // Quivering?
+        mouthBaseHeight = 5f,
+        eyeScaleY = 0.8f,
+        eyeRotationSpeed = 0.01f,
+        shakeIntensity = 2f // Shaking
+    ),
+    "Disgust" to EmotionConfig(
+        primaryColor = hexColor("#ff0000"), // Angry-ish (Red)
+        secondaryColor = hexColor("#880000"),
+        coreColor = hexColor("#ffaaaa"),
+        glowAmount = 15f,
+        pulseSpeed = 0.01f,
+        mouthSpeed = 0.1f,
+        mouthBaseHeight = 15f,
+        eyeScaleY = 0.9f,
+        eyeRotationSpeed = 0f,
+        shakeIntensity = 1f
     )
 )
 
@@ -141,36 +168,30 @@ private val EMOTIONS: Map<EmotionType, EmotionConfig> = mapOf(
 @Composable
 fun RoboFaceScreen() {
     val context = LocalContext.current
-    val sensorController = remember { SensorController(context) }
-    val sensorState by sensorController.state.collectAsState()
 
-    DisposableEffect(Unit) {
-        sensorController.startListening()
-        onDispose { sensorController.stopListening() }
-    }
+
 
     var currentEmotion by remember { mutableStateOf("Happy") }
-    // Store previous emotion to restore after sleep
-    var preSleepEmotion by remember { mutableStateOf("Happy") }
+
 
     // Sensor Logic Reactivity
-    LaunchedEffect(sensorState.isProximityNear) {
-        if (sensorState.isProximityNear) {
-            if (currentEmotion != "Sleep") {
-                preSleepEmotion = currentEmotion
-                currentEmotion = "Sleep"
-            }
-        } else {
-            if (currentEmotion == "Sleep") {
-                currentEmotion = preSleepEmotion
-            }
-        }
-    }
+    // Sensor Logic Removed
 
-    LaunchedEffect(sensorState.isShaking) {
-        if (sensorState.isShaking && currentEmotion != "Sleep") {
-            currentEmotion = "Angry"
-        }
+    var inferenceTime by remember { mutableLongStateOf(0L) }
+
+
+    
+    // Camera Integration
+    Box(modifier = Modifier.size(1.dp).padding(top = 1.dp)) { // Hidden camera preview
+        CameraPreview(
+            onEmotionDetected = { emotion, time ->
+                inferenceTime = time
+
+                 if (emotion != "Unknown" && emotion != "Error") {
+                     currentEmotion = emotion
+                 }
+            }
+        )
     }
 
     Column(
@@ -191,6 +212,7 @@ fun RoboFaceScreen() {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = "Interactive Emotion Core", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF9CA3AF))
+            Text(text = "Inference: ${inferenceTime}ms", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFF00FF00))
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -223,8 +245,7 @@ fun RoboFaceScreen() {
             ) {
                 RoboFaceCanvas(
                     sizeDp = sizeDp,
-                    currentEmotion = currentEmotion,
-                    sensorState = sensorState
+                    currentEmotion = currentEmotion
                 )
 
                 // Vignette overlay (semi-transparent radial)
@@ -261,8 +282,8 @@ private fun FlowRowControls(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         maxItemsInEachRow = 3 // optional, good for phones
     ) {
         emotions.forEach { emotion ->
@@ -296,8 +317,7 @@ private fun FlowRowControls(
 @Composable
 private fun RoboFaceCanvas(
     sizeDp: androidx.compose.ui.unit.Dp,
-    currentEmotion: EmotionType,
-    sensorState: RoboSensorState
+    currentEmotion: EmotionType
 ) {
 
     val transitionProgress = remember { Animatable(1f) }
@@ -362,48 +382,18 @@ private fun RoboFaceCanvas(
         val cx = canvasWidth / 2f
         val cy = canvasHeight / 2f
 
-        // Apply Head Tilt (Roll)
-        // Let's use Roll for static tilt.
-        // We'll limit the tilt so it doesn't go upside down fully
-        val tiltDegrees = -sensorState.roll * (180f / PI.toFloat())
-        
-        // Apply Eye Parallax (Pitch & Roll)
-        // INCREASED SENSITIVITY:
-        // Users couldn't see it. Let's make it much more pronounced.
-        // maxOffset changed from 0.15f to 0.4f (40% of width is huge, but let's try 0.25f first).
+        val tiltDegrees = 0f
+
         val maxOffset = canvasWidth * 0.3f 
-        
-        // "Tilt phone -> eyes move in same direction"
-        // If I tilt Left (Roll < 0? Or Roll > 0?), I expect Eyes to move Left relative to the screen.
-        // Gravity pulls things "Down".
-        // If I tilt Left side down, gravity pulls "Left".
-        // So eyes 'falling' to the left? 
-        // Or "Looking" in direction of tilt.
-        // Usually, eyes looking "towards" the tilt means they go to that side.
-        
-        // sensorState.roll: Positive when device is tilted right (right side down).
-        // If Roll > 0 (Right down), we want Eyes to go RIGHT (Positive X).
-        // My previous code: lookX = (roll / (PI/2)) * maxOffset. 
-        // This means Right Tilt -> Right Look. This is correct.
-        
-        // Pitch: Positive when device top is tilted away? Or towards?
-        // Android: Pitch positive when top of device is tilted down (towards ground? No, towards user usually z-axis... wait)
-        // Documentation: Pitch is positive when the device is tilted up (top edge up, bottom edge down) -> No. 
-        // Pitch is rotation around X axis.
-        // Let's just create a visually consistent mapping.
-        // If I tilt Top Down (Pitch ?), I want eyes to look Down (Positive Y).
-        
-        // Let's clamp the values so extreme tilts don't break the face
-        val rollFraction = (sensorState.roll / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
-        val pitchFraction = (sensorState.pitch / (PI.toFloat() / 2)).coerceIn(-1f, 1f)
+
+        val rollFraction = 0f
+        val pitchFraction = 0f
         
         val lookX = rollFraction * maxOffset
-        // If pitch is positive (top up?), I want eyes up? 
-        // Let's test negative.
+
         val lookY = calcPitchLookMode(pitchFraction) * maxOffset
 
         val frame = frameState.value.toFloat()
-//        val config = EMOTIONS[currentEmotion] ?: EMOTIONS["Happy"]!!
 
         // Global shake for Angry
         var shakeX = 0f
@@ -452,11 +442,6 @@ private fun RoboFaceCanvas(
         val eyeY = cy - canvasHeight * 0.1f
         val baseEyeRadius = canvasWidth * 0.15f
 // Eyes
-        // Apply head tilt rotation to the whole canvas context? 
-        // No, maybe just rotate the face elements?
-        // nativeCanvas.rotate(tiltDegrees, cx, cy) // This would rotate everything including bg? 
-        // If we want BG stable and Face rotating:
-        // Move rotate after BG draw.
         
         nativeCanvas.save()
         nativeCanvas.rotate(tiltDegrees, cx, cy)
@@ -525,9 +510,7 @@ private fun drawEye(
     var currentScaleY = config.eyeScaleY
     var currentRadius = radius
 
-    if (currentEmotion == "Curious" && isRight) {
-        currentRadius *= 1.1f
-    }
+
 
     // scale Y by using a matrix: approximate by scaling the canvas vertically
     nativeCanvas.scale(1f, currentScaleY)
@@ -693,12 +676,10 @@ private fun drawMouth(
 
     for (i in 0 until bars) {
         var barHeight = config.mouthBaseHeight
-        if (currentEmotion != "Sleep") {
-            val wave = sin((time * config.mouthSpeed) + (i * 0.5f))
-            barHeight += wave * 10f
-            if (currentEmotion == "Angry") {
-                barHeight += (Math.random().toFloat() * 15f)
-            }
+        val wave = sin((time * config.mouthSpeed) + (i * 0.5f))
+        barHeight += wave * 10f
+        if (currentEmotion == "Angry") {
+            barHeight += (Math.random().toFloat() * 15f)
         }
         barHeight = max(2f, barHeight)
         val bx = startX + (i * (width + spacing))
