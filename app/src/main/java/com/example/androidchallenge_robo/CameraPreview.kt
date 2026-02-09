@@ -45,21 +45,6 @@ fun CameraPreview(
                         
                     imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                         val bitmap = imageProxy.toBitmap()
-                        // Ensure bitmap is not null and manage rotation if needed
-                        // toBitmap() handles YUV to Bitmap conversion.
-                        // However, we need to be careful about rotation.
-                        // For front camera, it might be rotated.
-                        // EmotionClassifier.classify handles resizing.
-                        
-                        // We need to rotate the bitmap if necessary, or just rely on toBitmap() 
-                        // which usually respects rotation if we pass it, but ImageProxy.toBitmap() needs checking.
-                        
-                        /**
-                         * TODO: Handle rotation properly. 
-                         * For now, let's assume toBitmap() is sufficient or we can manually rotate.
-                         * But wait, toBitmap() is an extension in camera-core? 
-                         * It's available in newer CameraX versions. We added 1.3.0-rc01 so it should be there.
-                         */
 
                          if (bitmap != null) {
                              val startTime = System.currentTimeMillis()
